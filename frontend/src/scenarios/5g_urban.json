@@ -1,0 +1,14 @@
+{
+  "label": "Urban 5G — 3 Towers, 2 Users",
+  "mode": "5g",
+  "version": "2.0",
+  "towers": [
+    { "x": 200, "y": 200, "numAntennas": 32, "coverageRadius": 300, "frequency": 28000000000, "txPower": 30, "snr": 100, "windowType": "rectangular", "orientation": 0 },
+    { "x": 650, "y": 200, "numAntennas": 32, "coverageRadius": 300, "frequency": 28000000000, "txPower": 30, "snr": 100, "windowType": "rectangular", "orientation": 0 },
+    { "x": 420, "y": 520, "numAntennas": 48, "coverageRadius": 350, "frequency": 28000000000, "txPower": 30, "snr": 100, "windowType": "rectangular", "orientation": 0 }
+  ],
+  "users": [
+    { "x": 260, "y": 310, "speed": 150 },
+    { "x": 580, "y": 260, "speed": 150 }
+  ]
+}
