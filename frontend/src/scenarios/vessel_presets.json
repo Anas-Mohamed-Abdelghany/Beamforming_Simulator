@@ -1,0 +1,69 @@
+{
+  "presets": [
+    {
+      "id": "carotid",
+      "name": "Carotid Artery",
+      "velocity_cm_s": 80,
+      "angle_deg": 60,
+      "frequency_mhz": 7.5,
+      "wall_filter_hz": 100,
+      "diameter_mm": 6.5,
+      "waveform_shape": "carotid",
+      "sd_ratio": 0.7,
+      "turbulance_normal": 0.05,
+      "turbulance_stenotic": 0.4
+    },
+    {
+      "id": "femoral",
+      "name": "Femoral Artery",
+      "velocity_cm_s": 100,
+      "angle_deg": 60,
+      "frequency_mhz": 5.0,
+      "wall_filter_hz": 50,
+      "diameter_mm": 8.0,
+      "waveform_shape": "femoral",
+      "sd_ratio": 0.8,
+      "turbulance_normal": 0.1,
+      "turbulance_stenotic": 0.5
+    },
+    {
+      "id": "aorta",
+      "name": "Abdominal Aorta",
+      "velocity_cm_s": 120,
+      "angle_deg": 45,
+      "frequency_mhz": 3.5,
+      "wall_filter_hz": 150,
+      "diameter_mm": 20.0,
+      "waveform_shape": "aortic",
+      "sd_ratio": 0.9,
+      "turbulance_normal": 0.15,
+      "turbulance_stenotic": 0.6
+    },
+    {
+      "id": "portal_vein",
+      "name": "Portal Vein",
+      "velocity_cm_s": 30,
+      "angle_deg": 60,
+      "frequency_mhz": 5.0,
+      "wall_filter_hz": 50,
+      "diameter_mm": 10.0,
+      "waveform_shape": "portal_vein",
+      "sd_ratio": 0.0,
+      "turbulance_normal": 0.0,
+      "turbulance_stenotic": 0.2
+    },
+    {
+      "id": "umbilical",
+      "name": "Umbilical Artery",
+      "velocity_cm_s": 40,
+      "angle_deg": 60,
+      "frequency_mhz": 5.0,
+      "wall_filter_hz": 50,
+      "diameter_mm": 4.0,
+      "waveform_shape": "umbilical",
+      "sd_ratio": 0.5,
+      "turbulance_normal": 0.05,
+      "turbulance_stenotic": 0.3
+    }
+  ]
+}
