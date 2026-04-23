@@ -1,0 +1,20 @@
+{
+  "label": "Multi-Target Air Defense Scenario",
+  "mode": "radar",
+  "version": "1.0",
+  "arrayConfig": {
+    "numElements": 32,
+    "spacing": 0.015
+  },
+  "frequency": 10000000000,
+  "sweepRange": { "min": -180, "max": 180 },
+  "sweepSpeed": 45,
+  "detectionThreshold": 0.3,
+  "targets": [
+    { "x": 150, "y": -80, "rcs": 10 },
+    { "x": -60, "y": 120, "rcs": 2 },
+    { "x": 200, "y": 50,  "rcs": 25 },
+    { "x": -120, "y": -90, "rcs": 5 },
+    { "x": 80,  "y": 180, "rcs": 0.5 }
+  ]
+}

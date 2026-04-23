@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import FiveGMode from './modes/5g/FiveGMode.jsx'
 import DopplerMode from './advanced/DopplerMode.jsx'
+import RadarMode from './modes/radar/RadarMode.jsx'
 import AdvancedMode from './advanced/AdvancedMode.jsx'
 import './index.css'
 
@@ -26,8 +27,6 @@ const TABS = [
     label: 'Radar',
     icon: '🎯',
     accent: '#8b5cf6',
-    placeholder: true,
-    ownerLabel: 'M3',
   },
   {
     id: 'doppler',
@@ -86,6 +85,7 @@ export default function App() {
       case '5g': return <FiveGMode />
       case 'doppler': return <DopplerMode />
       case 'advanced': return <AdvancedMode />
+      case 'radar': return <RadarMode />
       default: return <PlaceholderMode tab={current} />
     }
   }
