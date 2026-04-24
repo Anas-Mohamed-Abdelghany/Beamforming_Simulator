@@ -1,202 +1,186 @@
-# 👤 Member 2 — 5G Beamforming & User Tracking Mode
+# 👤 Member 2 — 5G Beamforming & User Tracking Mode (Fully Self-Contained)
 
-> **Rule: NO physics math in the frontend. All antenna math, beam steering, and signal models live in the backend.**
-> Your frontend calls the API and renders the results.
+> **Stack:** Full-Stack — Physics math + Canvas rendering + 5G logic + 5G UI  
+> **Zero dependencies on other members.** You own everything needed for your mode end-to-end.
 
 ---
 
-## 📁 Your Files
+## 📁 Your Folder Structure
 
-### Backend (physics — yours to implement)
 ```
-backend/physics/fiveg/
-├── antenna.py        ← Antenna geometry builder, array factor
-├── beam_steering.py  ← Steering angle, per-element delays, beam width
-├── signal_model.py   ← Free-space path loss, SNR, signal strength (dBm)
-└── connection.py     ← Tower-user association, handoff hysteresis logic
-
-backend/models/fiveg.py      ← Pydantic request/response schemas
-backend/routes/fiveg.py      ← FastAPI endpoints for 5G
-```
-
-### Frontend (rendering + UI — yours to implement)
-```
-frontend/src/modes/5g/
-├── renderer.js       ← Canvas2D drawing (towers, users, beam lobes)
-├── simulator.js      ← Calls API, manages user positions & animation
-├── ui.js             ← Canvas interaction tool helpers
-└── FiveGMode.jsx     ← React root component
-
-frontend/src/scenarios/
+modes/5g/
+├── physics.js       ← antenna math, beam steering, signal model (yours only)
+├── renderer.js      ← canvas drawing utilities (yours only)
+├── simulator.js     ← towers, users, connection logic
+├── ui.js            ← control panel + interactive canvas tools
+└── index.html       ← your mode's panel markup
+scenarios/
 └── 5g_urban.json
 ```
 
----
-
-## 📦 BACKEND Deliverables
-
-### `physics/fiveg/antenna.py`
-```python
-def build_linear_antenna(num_elements: int, spacing_m: float,
-                         center_x: float, center_y: float) -> list[dict]:
-    # Returns [{"x": float, "y": float}, ...]
-```
-
-### `physics/fiveg/beam_steering.py`
-```python
-def compute_steering_angle(tower_x, tower_y, user_x, user_y) -> float: ...  # degrees
-
-def compute_antenna_delay(element_x, element_y,
-                          steering_angle_deg, frequency) -> float: ...  # seconds
-
-def array_factor(theta, num_elements, spacing_m, wavelength,
-                 steering_angle_deg) -> float: ...  # [0, 1]
-
-def beam_width_deg(num_elements, spacing_m, wavelength) -> float: ...  # HPBW
-```
-
-### `physics/fiveg/signal_model.py`
-```python
-def signal_strength(tower_x, tower_y, user_x, user_y,
-                    tx_power, frequency) -> float: ...  # dBm (free-space path loss)
-
-def snr(signal_dbm: float, noise_floor_dbm: float) -> float: ...  # dB
-```
-
-### `physics/fiveg/connection.py`
-```python
-def assign_tower(user: dict, towers: list) -> dict | None:
-    # Returns nearest tower whose coverage contains the user
-
-def distribute_antennas(tower: dict, users: list) -> dict:
-    # floor(N/K) per user, remainder to lowest-SNR user
-    # Returns { user_id: antenna_count }
-
-def check_handoff(user: dict, towers: list, hysteresis=0.05) -> dict | None:
-    # Returns new tower if handoff should occur (5% margin rule)
-```
-
-### `models/fiveg.py` — Pydantic schemas
-```python
-class TowerConfig(BaseModel):
-    id: str
-    x: float; y: float
-    num_antennas: int
-    coverage_radius: float
-    frequency: float
-
-class UserState(BaseModel):
-    id: str
-    x: float; y: float
-    connected_tower_id: str | None
-
-class FiveGTickRequest(BaseModel):
-    towers: list[TowerConfig]
-    users: list[UserState]
-    tx_power: float
-    noise_floor: float = -100.0
-
-class FiveGTickResponse(BaseModel):
-    beams: list          # [{tower_id, user_id, steering_angle, beam_width, gain_profile[]}]
-    connections: list    # [{user_id, tower_id, snr, antennas_assigned}]
-    handoff_events: list # [{user_id, from_tower, to_tower}]
-    heatmap: list | None # 2D signal strength grid (computed every 500ms)
-```
-
-### `routes/fiveg.py` — API endpoints
-```
-POST /api/5g/tick
-  Body: FiveGTickRequest
-  Returns: FiveGTickResponse
-  → Called every animation frame with current tower/user positions
-
-POST /api/5g/heatmap
-  Body: { towers, width, height, tx_power, frequency }
-  Returns: { grid: float[][] }
-  → Heavy computation, called every 500ms not every frame
-
-POST /api/5g/beam
-  Body: { tower, user, num_antennas, frequency }
-  Returns: { steering_angle, beam_width, delays[], gain_profile[] }
-  → Single beam calculation
-```
+> You have your own `physics.js` and `renderer.js`. No waiting on Member 1 or anyone else.
 
 ---
 
-## 📦 FRONTEND Deliverables
+## 📦 Deliverable 1 — 5G Physics Engine
+**File:** `modes/5g/physics.js`
 
-### `renderer.js`
-```js
-class FiveGRenderer {
-  constructor(canvas) {}
-  clear() {}
-  drawTower(x, y, color, label) {}
-  drawCoverageCircle(x, y, radius, color, opacity) {}
-  drawUser(x, y, id, selected, connected) {}
-  drawBeamLobe(towerX, towerY, steeringAngle, gainProfile, maxRange, color) {}
-  // gainProfile[] from API → filled polygon lobe shape
-  drawAntennaEmission(elementX, elementY, steeringAngle, phaseOffset) {}
-  drawSignalHeatmap(grid, bounds) {}
-  worldToCanvas(wx, wy) {}
-  canvasToWorld(cx, cy) {}
-  startLoop(cb) {}   // passes dt
-  stopLoop() {}
-}
-```
+### Tasks:
 
-### `simulator.js`
-```js
-// Manages user positions locally (movement is pure UI state)
-// Sends positions to API each tick to get beam/connection data back
-class FiveGSimulator {
-  constructor(apiClient) {}
-  placeTower(x, y, config) {}
-  removeTower(id) {}
-  placeUser(x, y) {}
-  removeUser(id) {}
-  selectUser(id) {}
-  moveSelectedUser(dx, dy) {}         // local position update only
-  async tick(dt) {}                   // sends state to API, gets beams/connections back
-  async refreshHeatmap() {}           // calls /api/5g/heatmap every 500ms
-}
-```
+- [ ] **Antenna element model**
+  - `buildLinearAntenna(numElements, spacingM, centerX, centerY)` → `[{x, y}]`
+  - Element spacing in meters; scale to canvas pixels via a world-to-canvas factor
 
-### `FiveGMode.jsx` — React component
-- One main interactive canvas
-- Toolbar: Place Tower / Place User / Delete / Select
-- Keyboard movement (WASD / arrows) for selected user
-- Auto-wander toggle for unselected users
-- Control sliders: Antennas per tower, Coverage radius, Frequency, Tx power, Speed
-- Live info panel: per-user SNR, tower, antennas assigned; per-tower user count
-- Handoff event log (scrolling)
-- Exposes `applyScenario(obj)` / `extractScenario()` via ref
+- [ ] **Beam steering**
+  - `computeSteeringAngle(towerX, towerY, userX, userY)` → angle in degrees
+  - `computeAntennaDelay(elementX, elementY, steeringAngleDeg, frequency)` → delay in seconds
+  - `arrayFactor(theta, numElements, spacingM, wavelength, steeringAngleDeg)` → normalized gain [0,1]
+
+- [ ] **Signal model**
+  - `signalStrength(towerX, towerY, userX, userY, txPower, frequency)` → dBm (free-space path loss)
+  - `snr(signalDbm, noiseFloorDbm)` → SNR in dB
+
+- [ ] **Beam width**
+  - `beamWidthDeg(numElements, spacingM, wavelength)` → HPBW in degrees
+  - Used to draw the visual beam lobe width on canvas
 
 ---
 
-## 📦 Scenario JSON
+## 📦 Deliverable 2 — 5G Renderer
+**File:** `modes/5g/renderer.js`
 
-### `5g_urban.json`
+### Tasks:
+
+- [ ] **`FiveGRenderer` class** wrapping a `<canvas>` element
+  - `clear()`
+  - `drawTower(x, y, color, label)` — antenna tower icon
+  - `drawCoverageCircle(x, y, radius, color, opacity)`
+  - `drawUser(x, y, id, selected, connected)` — dot + optional highlight ring
+  - `drawBeamLobe(towerX, towerY, steeringAngle, beamWidthDeg, rangePixels, color)` — fan shape
+  - `drawAntennaEmission(elementX, elementY, steeringAngle, phaseOffset)` — small arc per antenna
+  - `drawSignalHeatmap(grid[][], bounds)` — background signal strength map
+  - `worldToCanvas(wx, wy)` / `canvasToWorld(cx, cy)`
+
+- [ ] **Animation loop**
+  - `startLoop(cb)` / `stopLoop()` with `requestAnimationFrame`
+  - Passes `dt` to callback
+
+- [ ] **Beam lobe drawing**
+  - Use `arrayFactor(theta)` to compute radial extent at each angle
+  - Draw as a filled polygon: iterate angles in ±60° from steering, plot `gain × maxRange` as radius
+  - Fill with semi-transparent tower color; stroke with solid line
+
+---
+
+## 📦 Deliverable 3 — 5G Simulation Logic
+**Files:** `modes/5g/simulator.js`
+
+### Tasks:
+
+- [ ] **`Tower` class**
+  - `constructor(x, y, numAntennas, coverageRadius, frequency)`
+  - `getAntennaPositions()` → element array centered at tower
+  - `addUser(user)` / `removeUser(user)` — manages served users list
+  - `distributeAntennas()` → assigns `floor(N/K)` antennas per user (remainder to lowest SNR user)
+  - `computeBeamForUser(user)` → `{ steeringAngle, beamWidth, delays[] }`
+
+- [ ] **`MobileUser` class**
+  - `constructor(x, y, id)`
+  - `moveTo(x, y)` / `setVelocity(vx, vy)` / `tick(dt)`
+  - `connectedTower` property (null if unconnected)
+
+- [ ] **`FiveGSimulator` class**
+  - `placeTower(x, y)` / `removeTower(id)`
+  - `placeUser(x, y)` / `removeUser(id)`
+  - `selectUser(id)` — marks user as keyboard-controlled
+  - `tick(dt)` — moves users, runs connection logic, recomputes beams
+  - Returns render state: `{ towers[], users[], beams[], heatmapDirty }`
+
+- [ ] **Connection management**
+  - User connects to nearest tower whose coverage circle contains them
+  - Hysteresis: 5% margin — user must exit coverage + 5% before disconnect
+  - On overlap: stays on current tower until forced disconnect
+  - Fires `handoff` event `{ userId, fromTowerId, toTowerId }` on switch
+
+- [ ] **Antenna distribution**
+  - K users in range of a tower with N antennas: each gets `floor(N/K)` antennas
+  - Leftover antennas go to user with lowest SNR
+  - Minimum 1 antenna per user guaranteed
+
+- [ ] **Signal heatmap** (computed every 500 ms, not every frame)
+  - Grid of `signalStrength` values from all towers combined (max-of-towers per cell)
+  - Returns 2D array; renderer draws it as background
+
+---
+
+## 📦 Deliverable 4 — 5G UI & Interaction
+**File:** `modes/5g/ui.js` + `modes/5g/index.html`
+
+### Tasks:
+
+- [ ] **Canvas interaction toolbar** (mutually exclusive tool modes):
+  - 🏗️ Place Tower — click canvas → new tower appears
+  - 👤 Place User — click canvas → new user appears
+  - 🗑️ Delete — click tower or user → removes it
+  - 👆 Select — click user to select for keyboard movement
+
+- [ ] **Keyboard movement** for selected user:
+  - Arrow keys / WASD → move at configurable speed
+  - Speed slider: 1–200 px/s equivalent
+
+- [ ] **Auto-wander toggle** — unselected users move randomly, bounce off walls
+
+- [ ] **Control panel sliders:**
+  - Antennas per tower: 4–64
+  - Coverage radius: 50–500 canvas units
+  - Frequency: 1–100 GHz (affects path loss and beam width)
+  - Tx power: 10–50 dBm
+
+- [ ] **Info panel** (read-only, updates live):
+  - Per user: connected tower, SNR, antennas assigned, beam angle
+  - Per tower: number of active users, total antennas in use
+
+- [ ] **Event log** — scrolling list showing handoff events with timestamp
+
+- [ ] **Scenario load/save** (self-contained):
+  - Save → extract current towers + users config → download as `.json`
+  - Load → file picker → parse → recreate towers and users
+
+---
+
+## 📦 Deliverable 5 — Predefined Scenario
+**File:** `scenarios/5g_urban.json`
+
 ```json
 {
-  "label": "Urban Multi-User Deployment", "mode": "5g", "version": "1.0",
+  "label": "Urban Multi-User Deployment",
+  "mode": "5g",
   "towers": [
     { "x": 200, "y": 200, "numAntennas": 32, "coverageRadius": 300 },
     { "x": 600, "y": 200, "numAntennas": 32, "coverageRadius": 300 },
     { "x": 400, "y": 500, "numAntennas": 64, "coverageRadius": 400 }
   ],
-  "users": [{ "x": 250, "y": 300 }, { "x": 550, "y": 250 },
-            { "x": 380, "y": 480 }, { "x": 450, "y": 150 }],
-  "frequency": 28000000000, "txPower": 30
+  "users": [
+    { "x": 250, "y": 300 },
+    { "x": 550, "y": 250 },
+    { "x": 380, "y": 480 },
+    { "x": 450, "y": 150 }
+  ],
+  "frequency": 28000000000,
+  "txPower": 30,
+  "description": "Three 5G towers in a dense urban triangle, four users testing handoff and multi-beam allocation."
 }
 ```
 
 ---
 
 ## ✅ Acceptance Checklist
-- [ ] `POST /api/5g/tick` returns beams + connections for any tower/user layout
-- [ ] Handoff fires correctly with 5% hysteresis (tested in backend unit logic)
-- [ ] Antenna distribution: floor(N/K) per user, verified in `connection.py`
-- [ ] Frontend renders beam lobes using only `gain_profile[]` from API
-- [ ] No `sin`, `cos`, path-loss formula anywhere in frontend files
-- [ ] Keyboard movement + auto-wander work smoothly
-- [ ] `applyScenario()` / `extractScenario()` work correctly
+
+- [ ] Mode runs at ≥ 30 FPS standalone (open `modes/5g/index.html` directly)
+- [ ] Placing 3 towers + 4 users works without crash
+- [ ] Two users in same tower range → 2 distinct beam lobes drawn
+- [ ] Moving user out of coverage → handoff event fires and log updates
+- [ ] Keyboard movement works on selected user while simulation continues
+- [ ] Antenna count reassigns correctly as users enter/leave coverage
+- [ ] Heatmap toggles on/off without FPS drop below 30
+- [ ] Save → reload restores all towers and users at correct positions

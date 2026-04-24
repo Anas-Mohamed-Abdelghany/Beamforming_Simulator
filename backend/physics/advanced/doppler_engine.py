@@ -43,7 +43,7 @@ class DopplerParams:
     velocity_cm_s: float = 60.0          # 1–150 cm/s
 
     # Param 2 – Vessel angle relative to beam  [degrees]
-    angle_deg: float = 60.0             # 0–89°
+    angle_deg: float = 60.0             # 0–89°  (90° → no detectable Doppler)
 
     # Param 3 – Transducer centre frequency  [MHz]
     frequency_mhz: float = 5.0          # 1–15 MHz
@@ -60,7 +60,7 @@ class DopplerParams:
     # Param 7 – Spectral spread factor (turbulence index 0–1)
     turbulence: float = 0.1             # 0 = laminar, 1 = fully turbulent
 
-    # NEW M4 ADVANCED PARAMS
+    # ADVANCED PARAMS
     heart_rate_bpm: float = 72.0
     sd_ratio: float = 0.6
     diameter_mm: float = 6.0
@@ -87,7 +87,11 @@ class DopplerParams:
 # ── Core physics ─────────────────────────────────────────────────────────────
 
 def doppler_shift(params: DopplerParams) -> float:
-    """Return the peak Doppler shift frequency [Hz]."""
+    """
+    Return the peak Doppler shift frequency [Hz].
+
+        f_d = (2 * v * cos(θ) * f₀) / c
+    """
     return (2.0 * params.velocity_m_s * math.cos(params.angle_rad) * params.f0_hz) / params.c_sound
 
 
@@ -114,6 +118,7 @@ def spectral_broadening(params: DopplerParams, beam_width_deg: float = 5.0) -> f
     Estimate σ of the Doppler spectrum [Hz].
     Accounts for turbulent plug profile when Re > 2300.
     """
+    # Geometric broadening — finite beam width contribution
     delta_angle = math.radians(beam_width_deg / 2.0)
     f_peak = doppler_shift(params)
     geom_sigma = abs(f_peak * math.tan(params.angle_rad) * math.tan(delta_angle))
