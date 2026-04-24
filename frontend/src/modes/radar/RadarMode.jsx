@@ -16,6 +16,7 @@ import {
 import { RadarSimulator } from './simulator.js'
 import { RadarRenderer, PolarPatternRenderer } from './renderer.js'
 import { formatFrequency, formatRange, formatDbm, formatRcs } from './ui.js'
+import { radarLockSize } from '../m3_radar/radar_api.js'
 import radarScenario from '../../scenarios/radar_tracking.json'
 
 /* ── Window types ────────────────────────────────────────────────────────── */
@@ -27,10 +28,10 @@ const WINDOW_TYPES = [
 const PARAMS = [
   { key: 'numElements', label: 'Elements (N)', min: 4, max: 128, step: 1, fmt: v => `${v}` },
   { key: 'spacingM', label: 'Spacing (d)', min: 0.005, max: 0.05, step: 0.001, fmt: v => `${v.toFixed(3)} m` },
-  { key: 'frequency', label: 'Frequency', min: 1e9, max: 24e9, step: 1e9, fmt: v => formatFrequency(v) },
+  { key: 'frequency', label: 'Pulse Freq', min: 1e9, max: 24e9, step: 1e9, fmt: v => formatFrequency(v) },
   { key: 'sweepSpeed', label: 'Sweep Speed', min: 5, max: 360, step: 1, fmt: v => `${v}°/s` },
   { key: 'detectionThreshold', label: 'Threshold', min: 0, max: 1, step: 0.01, fmt: v => v.toFixed(2) },
-  { key: 'snr', label: 'SNR', min: 0, max: 1000, step: 1, fmt: v => `${v}` },
+  { key: 'snr', label: 'Local SNR', min: 0, max: 1000, step: 1, fmt: v => `${v}` },
 ]
 
 /* ── Main component ──────────────────────────────────────────────────────── */
@@ -77,6 +78,8 @@ const RadarMode = forwardRef(function RadarMode(_props, ref) {
   const [targets, setTargets] = useState([])
   const [logEntries, setLogEntries] = useState([])
   const [compareMode, setCompareMode] = useState(false)
+  const [lockState, setLockState] = useState({})       // { targetId: { locked, consecutive, sizeCategory, narrowBW } }
+  const detectionCountsRef = useRef({})                 // { targetId: consecutiveDetections }
 
   /* ── Imperative handle for scenario support ─────────────────────────── */
   useImperativeHandle(ref, () => ({
@@ -149,8 +152,28 @@ const RadarMode = forwardRef(function RadarMode(_props, ref) {
       rs.sll = resp.side_lobe_level_db
       rs.gratingWarning = resp.grating_lobe_warning
 
-      // Track detection times
+      // Track detection times AND consecutive detection counts for Lock-and-Size
       const now = Date.now()
+      const counts = detectionCountsRef.current
+      const detectedIds = new Set(resp.detections.map(d => d.target_id))
+
+      // Update consecutive counts
+      const sim = simRef.current
+      if (sim) {
+        sim.targets.forEach(t => {
+          if (detectedIds.has(t.id)) {
+            counts[t.id] = (counts[t.id] || 0) + 1
+          } else {
+            // Reset after missing a sweep cycle (if angle wrapped)
+            const lastAngle = rs.sweepAngle
+            // Only reset if a full sweep cycle passed without detection
+            if (counts[t.id] && counts[t.id] > 0) {
+              // Keep count — only reset when explicitly not in beam
+            }
+          }
+        })
+      }
+
       resp.detections.forEach(d => {
         rs.targetDetectionTimes[d.target_id] = now
       })
@@ -213,8 +236,45 @@ const RadarMode = forwardRef(function RadarMode(_props, ref) {
       }
     }, 250)
 
+    // Lock-and-Size evaluation (1 Hz)
+    const lockInterval = setInterval(async () => {
+      const sim = simRef.current
+      if (!sim || sim.targets.length === 0) return
+      const counts = detectionCountsRef.current
+      try {
+        const resp = await radarLockSize({
+          num_elements: sim.config.numElements,
+          spacing_m: sim.config.spacingM,
+          frequency: sim.config.frequency,
+          lock_factor: 3.0,
+          consecutive_threshold: 2,
+          targets: sim.targets.map(t => ({
+            id: t.id,
+            x: t.x,
+            y: t.y,
+            rcs: t.rcs,
+            consecutive_detections: counts[t.id] || 0,
+          })),
+        })
+        const newLockState = {}
+        resp.sizing_results.forEach(sr => {
+          newLockState[sr.target_id] = {
+            locked: sr.locked,
+            consecutive: counts[sr.target_id] || 0,
+            sizeCategory: sr.size_category,
+            narrowBW: sr.narrow_beam_width,
+            wideBW: sr.wide_beam_width,
+          }
+        })
+        setLockState(newLockState)
+      } catch {
+        // Lock-size endpoint not available, skip
+      }
+    }, 1000)
+
     return () => {
       clearInterval(readoutInterval)
+      clearInterval(lockInterval)
       sim.stop()
     }
   }, [compareMode])
@@ -336,7 +396,7 @@ const RadarMode = forwardRef(function RadarMode(_props, ref) {
 
           {/* Window select */}
           <div className="param-row">
-            <label>Window</label>
+            <label>Local Window</label>
             <select
               value={config.windowType}
               onChange={e => handleConfigChange('windowType', e.target.value)}
@@ -614,47 +674,72 @@ const RadarMode = forwardRef(function RadarMode(_props, ref) {
           }}>
             Targets ({targets.length}/5)
           </div>
-          {targets.map((t, i) => (
-            <div key={t.id} style={{
-              background: 'var(--bg-card)', border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-sm)', padding: '8px 10px',
-              marginBottom: 6,
-            }}>
-              <div style={{
-                display: 'flex', justifyContent: 'space-between',
-                alignItems: 'center', marginBottom: 4,
+          {targets.map((t, i) => {
+            const ls = lockState[t.id]
+            const isLocked = ls && ls.locked
+            return (
+              <div key={t.id} style={{
+                background: isLocked ? 'rgba(139,92,246,0.08)' : 'var(--bg-card)',
+                border: `1px solid ${isLocked ? 'rgba(139,92,246,0.5)' : 'var(--border)'}`,
+                borderRadius: 'var(--radius-sm)', padding: '8px 10px',
+                marginBottom: 6,
+                transition: 'border-color 0.3s, background 0.3s',
               }}>
-                <span style={{
-                  fontSize: 11, fontWeight: 600, color: '#61dafb',
-                }}>Target #{i + 1}</span>
-                <button
-                  onClick={() => handleRemoveTarget(t.id)}
-                  style={{
-                    background: 'none', border: 'none', color: '#ef4444',
-                    cursor: 'pointer', fontSize: 12, fontWeight: 700, padding: '0 4px',
-                  }}
-                >✕</button>
+                <div style={{
+                  display: 'flex', justifyContent: 'space-between',
+                  alignItems: 'center', marginBottom: 4,
+                }}>
+                  <span style={{
+                    fontSize: 11, fontWeight: 600, color: isLocked ? '#a78bfa' : '#61dafb',
+                  }}>
+                    Target #{i + 1}
+                    {isLocked && (
+                      <span style={{
+                        marginLeft: 6, fontSize: 9, padding: '1px 6px',
+                        borderRadius: 4,
+                        background: 'rgba(139,92,246,0.25)', color: '#c4b5fd',
+                        fontWeight: 500, animation: 'badgePulse 1.5s ease infinite',
+                      }}>🔒 LOCKED</span>
+                    )}
+                  </span>
+                  <button
+                    onClick={() => handleRemoveTarget(t.id)}
+                    style={{
+                      background: 'none', border: 'none', color: '#ef4444',
+                      cursor: 'pointer', fontSize: 12, fontWeight: 700, padding: '0 4px',
+                    }}
+                  >✕</button>
+                </div>
+                <div style={{
+                  fontSize: 10, color: 'var(--text-muted)',
+                  fontFamily: 'var(--font-mono)', marginBottom: 4,
+                }}>
+                  x: {t.x}m  y: {t.y}m  R: {formatRange(Math.sqrt(t.x * t.x + t.y * t.y))}
+                </div>
+                {isLocked && ls.sizeCategory && (
+                  <div style={{
+                    fontSize: 9, color: '#c4b5fd', fontFamily: 'var(--font-mono)',
+                    background: 'rgba(139,92,246,0.12)', padding: '3px 6px',
+                    borderRadius: 3, marginBottom: 4,
+                  }}>
+                    Size: {ls.sizeCategory} · Narrow BW: {ls.narrowBW?.toFixed(2)}°
+                  </div>
+                )}
+                <div className="param-row" style={{ marginBottom: 0 }}>
+                  <label style={{ fontSize: 10 }}>RCS</label>
+                  <input
+                    type="range"
+                    min={0.1} max={100} step={0.1}
+                    value={t.rcs}
+                    onChange={e => handleTargetRcsChange(t.id, parseFloat(e.target.value))}
+                  />
+                  <span className="param-val" style={{ color: '#f59e0b', fontSize: 10 }}>
+                    {formatRcs(t.rcs)}
+                  </span>
+                </div>
               </div>
-              <div style={{
-                fontSize: 10, color: 'var(--text-muted)',
-                fontFamily: 'var(--font-mono)', marginBottom: 4,
-              }}>
-                x: {t.x}m  y: {t.y}m  R: {formatRange(Math.sqrt(t.x * t.x + t.y * t.y))}
-              </div>
-              <div className="param-row" style={{ marginBottom: 0 }}>
-                <label style={{ fontSize: 10 }}>RCS</label>
-                <input
-                  type="range"
-                  min={0.1} max={100} step={0.1}
-                  value={t.rcs}
-                  onChange={e => handleTargetRcsChange(t.id, parseFloat(e.target.value))}
-                />
-                <span className="param-val" style={{ color: '#f59e0b', fontSize: 10 }}>
-                  {formatRcs(t.rcs)}
-                </span>
-              </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
 
         {/* ── Detection log ────────────────────────────────────────────── */}

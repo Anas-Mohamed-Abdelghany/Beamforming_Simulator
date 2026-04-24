@@ -1,14 +1,9 @@
 /**
- * 5G Simulator — exactly 3 towers (user-placed) + 2 users,
+ * 5G Simulator — configurable number of towers (1–5) and users (1–5),
  * sends state to backend each tick, receives beams/connections/updates.
  */
 
 const DEFAULT_TOWER_CFG = { num_antennas: 32, coverage_radius: 300, frequency: 28e9, tx_power: 30, snr: 100, window_type: 'rectangular', orientation: 0 };
-
-const USER_DEFAULTS = [
-  { x: 260, y: 310 },
-  { x: 580, y: 260 },
-];
 
 let _idCounter = 0;
 function uid(prefix) { return `${prefix}_${++_idCounter}`; }
@@ -17,15 +12,18 @@ export class FiveGSimulator {
   constructor(apiBaseUrl) {
     this.apiBaseUrl = apiBaseUrl || '/api/5g';
 
+    // ── Configuration ────────────────────────────────────────────────────
+    this.numTowersToPlace = 3;   // configurable: 1–5
+    this.numUsersToSpawn = 2;    // configurable: 1–5
+
     // ── Towers — empty until user places them ───────────────────────────
     this.towers = [];
-    this.maxTowers = 3;
 
-    // ── Users — appear after all 3 towers are placed ────────────────────
+    // ── Users — appear after all towers are placed ──────────────────────
     this.users = [];
 
     // ── Phase tracking ──────────────────────────────────────────────────
-    this.phase = 'placing';  // 'placing' | 'running'
+    this.phase = 'config';  // 'config' | 'placing' | 'running'
     this.towersPlaced = 0;
 
     // ── Server state ────────────────────────────────────────────────────
@@ -41,7 +39,7 @@ export class FiveGSimulator {
     this.allConnectivity = [];   // [{tower_id, tower_idx, user_id, user_idx, distance, in_range}]
 
     // ── Selection ───────────────────────────────────────────────────────
-    this.selectedUserIndex = 0;  // 0 or 1
+    this.selectedUserIndex = 0;
     this.selectedTowerIndex = -1;
 
     // ── Timing control ──────────────────────────────────────────────────
@@ -51,10 +49,31 @@ export class FiveGSimulator {
     this._hmPending = false;
   }
 
+  /* ── Configuration ──────────────────────────────────────────────────── */
+
+  configure(numTowers, numUsers) {
+    this.numTowersToPlace = Math.max(1, Math.min(5, numTowers));
+    this.numUsersToSpawn = Math.max(1, Math.min(5, numUsers));
+  }
+
+  startPlacing() {
+    this.phase = 'placing';
+    this.towers = [];
+    this.users = [];
+    this.towersPlaced = 0;
+    this.beams = [];
+    this.connections = [];
+    this.handoffEvents = [];
+    this.towerUpdates = {};
+    this.beamProfiles = [];
+    this.interferenceMap = null;
+    this.allConnectivity = [];
+  }
+
   /* ── Tower placement ─────────────────────────────────────────────────── */
 
   placeTower(x, y) {
-    if (this.towers.length >= this.maxTowers) return false;
+    if (this.towers.length >= this.numTowersToPlace) return false;
     this.towers.push({
       id: uid('t'),
       x, y,
@@ -62,8 +81,8 @@ export class FiveGSimulator {
     });
     this.towersPlaced = this.towers.length;
 
-    // When 3 towers placed, spawn users and start simulation
-    if (this.towers.length === this.maxTowers) {
+    // When all towers placed, spawn users and start simulation
+    if (this.towers.length === this.numTowersToPlace) {
       this._spawnUsers();
       this.phase = 'running';
     }
@@ -71,13 +90,26 @@ export class FiveGSimulator {
   }
 
   _spawnUsers() {
-    this.users = USER_DEFAULTS.map((cfg) => ({
-      id: uid('u'),
-      x: cfg.x,
-      y: cfg.y,
-      speed: 150,
-      connected_tower_id: null,
-    }));
+    // Generate user positions spread across the canvas
+    const positions = [
+      { x: 260, y: 310 },
+      { x: 580, y: 260 },
+      { x: 420, y: 480 },
+      { x: 150, y: 180 },
+      { x: 700, y: 400 },
+    ];
+    this.users = [];
+    for (let i = 0; i < this.numUsersToSpawn; i++) {
+      const pos = positions[i] || { x: 200 + i * 120, y: 250 + (i % 2) * 150 };
+      this.users.push({
+        id: uid('u'),
+        x: pos.x,
+        y: pos.y,
+        speed: 150,
+        connected_tower_id: null,
+      });
+    }
+    this.selectedUserIndex = 0;
   }
 
   /* ── User movement (local only) ──────────────────────────────────────── */

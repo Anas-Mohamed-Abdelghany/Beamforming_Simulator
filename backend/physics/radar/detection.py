@@ -156,7 +156,8 @@ def check_targets(
         target_id = target.get("id", "unknown")
 
         # 1. Compute target angle and range
-        target_angle = math.degrees(math.atan2(ty, tx))
+        # Use atan2(x, y) to match PPI convention: 0° = North (up), CW positive
+        target_angle = math.degrees(math.atan2(tx, ty))
         target_range = math.sqrt(tx ** 2 + ty ** 2)
 
         if target_range < 1.0:

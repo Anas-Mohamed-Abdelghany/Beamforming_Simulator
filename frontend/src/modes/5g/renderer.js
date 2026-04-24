@@ -3,8 +3,8 @@
  * interference heatmap, and beam-profile polar plots.
  */
 
-const TOWER_COLORS = ['#f59e0b', '#8b5cf6', '#22d3ee'];
-const USER_COLORS  = ['#3b82f6', '#ec4899'];
+const TOWER_COLORS = ['#f59e0b', '#8b5cf6', '#22d3ee', '#ec4899', '#10b981'];
+const USER_COLORS  = ['#3b82f6', '#ec4899', '#f59e0b', '#22d3ee', '#8b5cf6'];
 
 export class FiveGRenderer {
   constructor(canvas) {
@@ -215,7 +215,7 @@ export class FiveGRenderer {
     if (isSelected) {
       ctx.font = '400 8px system-ui, sans-serif';
       ctx.fillStyle = 'rgba(255,255,255,0.35)';
-      ctx.fillText(index === 0 ? 'WASD' : '↑↓←→', 0, 20);
+      ctx.fillText('WASD / ↑↓←→', 0, 20);
     }
 
     ctx.restore();
@@ -285,7 +285,7 @@ export class FiveGRenderer {
 
   /* ── Placement overlay ─────────────────────────────────────────────── */
 
-  drawPlacementOverlay(towersPlaced) {
+  drawPlacementOverlay(towersPlaced, totalTowers = 3) {
     const ctx = this.ctx;
     const w = this.canvas.width;
     const h = this.canvas.height;
@@ -299,7 +299,7 @@ export class FiveGRenderer {
     ctx.textAlign = 'center';
     ctx.font = '700 22px system-ui, sans-serif';
     ctx.fillStyle = '#61dafb';
-    ctx.fillText(`Place Tower ${towersPlaced + 1} of 3`, w / 2, h / 2 - 20);
+    ctx.fillText(`Place Tower ${towersPlaced + 1} of ${totalTowers}`, w / 2, h / 2 - 20);
 
     ctx.font = '400 14px system-ui, sans-serif';
     ctx.fillStyle = 'rgba(232,236,244,0.6)';
@@ -307,7 +307,7 @@ export class FiveGRenderer {
 
     ctx.font = '400 12px system-ui, sans-serif';
     ctx.fillStyle = 'rgba(136,146,168,0.5)';
-    ctx.fillText(`${towersPlaced}/3 towers placed`, w / 2, h / 2 + 35);
+    ctx.fillText(`${towersPlaced}/${totalTowers} towers placed`, w / 2, h / 2 + 35);
 
     // Draw already-placed towers
     ctx.restore();

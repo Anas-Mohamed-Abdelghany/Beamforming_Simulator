@@ -9,6 +9,7 @@ from backend.models.radar import (
     PatternRequest, PatternResponse,
     DelaysRequest, DelaysResponse,
     GainPoint, DetectionEvent,
+    LockSizeRequest, LockSizeResponse, SizedTarget,
 )
 from backend.physics.fiveg.beam_steering import beam_width_deg
 from backend.physics.radar.array_factor import (
@@ -145,3 +146,78 @@ async def delays(req: DelaysRequest) -> DelaysResponse:
         frequency=req.frequency,
     )
     return DelaysResponse(delays=delay_list)
+
+
+# ── POST /lock-size ───────────────────────────────────────────────────────────────
+
+@router.post("/lock-size", response_model=LockSizeResponse)
+async def lock_size(req: LockSizeRequest) -> LockSizeResponse:
+    """
+    Evaluate targets for lock-and-size.
+
+    When a target has been consecutively detected enough times,
+    the beam automatically narrows to "size" it (estimate angular extent).
+    """
+    from backend.m3_radar.sizing_logic import (
+        compute_lock_beam_params,
+        evaluate_lock_candidates,
+        estimate_target_size,
+        sizing_scan_sector,
+    )
+
+    wavelength = C / req.frequency
+
+    # Compute wide/narrow beam parameters
+    beam_params = compute_lock_beam_params(
+        base_num_elements=req.num_elements,
+        spacing_m=req.spacing_m,
+        wavelength=wavelength,
+        lock_factor=req.lock_factor,
+    )
+
+    # Determine which targets qualify for lock
+    detection_history = {
+        t.id: t.consecutive_detections for t in req.targets
+    }
+    locked_ids = evaluate_lock_candidates(
+        targets=[t.model_dump() for t in req.targets],
+        detection_history=detection_history,
+        consecutive_threshold=req.consecutive_threshold,
+    )
+
+    # Build sizing results for all targets
+    sizing_results = []
+    for t in req.targets:
+        is_locked = t.id in locked_ids
+        result = SizedTarget(
+            target_id=t.id,
+            locked=is_locked,
+            wide_beam_width=beam_params["wide_beam_width"],
+            narrow_beam_width=beam_params["narrow_beam_width"],
+            effective_elements=beam_params["effective_elements"],
+        )
+
+        if is_locked:
+            import math
+            target_angle = math.degrees(math.atan2(t.x, t.y))  # PPI convention: 0°=North
+            size_info = estimate_target_size(
+                target_angle_deg=target_angle,
+                sweep_angle_deg=target_angle,  # locked onto target
+                narrow_beam_width_deg=beam_params["narrow_beam_width"],
+                gain_at_target=0.95,  # assume high gain when locked
+            )
+            sector = sizing_scan_sector(
+                target_angle_deg=target_angle,
+                narrow_beam_width_deg=beam_params["narrow_beam_width"],
+            )
+            result.size_category = size_info["size_category"]
+            result.estimated_extent_deg = size_info["estimated_extent_deg"]
+            result.scan_sector_min = sector[0]
+            result.scan_sector_max = sector[1]
+
+        sizing_results.append(result)
+
+    return LockSizeResponse(
+        locked_target_ids=locked_ids,
+        sizing_results=sizing_results,
+    )

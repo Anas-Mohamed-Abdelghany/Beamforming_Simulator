@@ -1,11 +1,12 @@
 /**
  * 5G UI input handler — keyboard movement, user/tower selection, tower placement.
  *
- * Controls:
- *   WASD        → move User 1
- *   Arrow keys  → move User 2
- *   Tab         → switch selected user highlight
- *   Click       → place tower (during placement) / select user or tower (during running)
+ * Controls (BOTH configurations move the SELECTED user):
+ *   WASD        → move selected user
+ *   Arrow keys  → move selected user
+ *   Tab         → cycle to next user
+ *   1-5 keys    → select user directly
+ *   Click       → place tower (config) / select user or tower (running)
  */
 
 export class FiveGUITools {
@@ -22,9 +23,22 @@ export class FiveGUITools {
   _bindEvents() {
     window.addEventListener('keydown', (e) => {
       this.activeKeys[e.key.toLowerCase()] = true;
+
+      // Tab: cycle selected user
       if (e.key === 'Tab') {
         e.preventDefault();
-        this.sim.selectedUserIndex = this.sim.selectedUserIndex === 0 ? 1 : 0;
+        const totalUsers = this.sim.users.length;
+        if (totalUsers > 0) {
+          this.sim.selectedUserIndex = (this.sim.selectedUserIndex + 1) % totalUsers;
+          this.sim.selectedTowerIndex = -1;
+        }
+      }
+
+      // Number keys 1-5: directly select user
+      const numKey = parseInt(e.key);
+      if (numKey >= 1 && numKey <= 5 && numKey <= this.sim.users.length) {
+        this.sim.selectedUserIndex = numKey - 1;
+        this.sim.selectedTowerIndex = -1;
       }
     });
     window.addEventListener('keyup', (e) => {
@@ -80,23 +94,18 @@ export class FiveGUITools {
   updateMovement(dt) {
     if (this.sim.phase !== 'running') return;
 
-    const speed1 = (this.sim.users[0]?.speed || 150) * dt / 1000;
-    const speed2 = (this.sim.users[1]?.speed || 150) * dt / 1000;
+    const selectedIdx = this.sim.selectedUserIndex;
+    const user = this.sim.users[selectedIdx];
+    if (!user) return;
 
-    // User 1 — WASD (always active)
-    let dx1 = 0, dy1 = 0;
-    if (this.activeKeys['w']) dy1 -= speed1;
-    if (this.activeKeys['s']) dy1 += speed1;
-    if (this.activeKeys['a']) dx1 -= speed1;
-    if (this.activeKeys['d']) dx1 += speed1;
-    if (dx1 || dy1) this.sim.moveUser(0, dx1, dy1);
+    const speed = (user.speed || 150) * dt / 1000;
 
-    // User 2 — Arrow keys
-    let dx2 = 0, dy2 = 0;
-    if (this.activeKeys['arrowup']) dy2 -= speed2;
-    if (this.activeKeys['arrowdown']) dy2 += speed2;
-    if (this.activeKeys['arrowleft']) dx2 -= speed2;
-    if (this.activeKeys['arrowright']) dx2 += speed2;
-    if (dx2 || dy2) this.sim.moveUser(1, dx2, dy2);
+    // Both WASD and Arrow keys move the SELECTED user
+    let dx = 0, dy = 0;
+    if (this.activeKeys['w'] || this.activeKeys['arrowup']) dy -= speed;
+    if (this.activeKeys['s'] || this.activeKeys['arrowdown']) dy += speed;
+    if (this.activeKeys['a'] || this.activeKeys['arrowleft']) dx -= speed;
+    if (this.activeKeys['d'] || this.activeKeys['arrowright']) dx += speed;
+    if (dx || dy) this.sim.moveUser(selectedIdx, dx, dy);
   }
 }

@@ -3,8 +3,9 @@ import { FiveGRenderer } from './renderer';
 import { FiveGSimulator } from './simulator';
 import { FiveGUITools } from './ui';
 
-const TOWER_NAMES = ['Tower 1', 'Tower 2', 'Tower 3'];
-const TOWER_COLORS = ['#f59e0b', '#8b5cf6', '#22d3ee'];
+const TOWER_NAMES = ['Tower 1', 'Tower 2', 'Tower 3', 'Tower 4', 'Tower 5'];
+const TOWER_COLORS = ['#f59e0b', '#8b5cf6', '#22d3ee', '#ec4899', '#10b981'];
+const USER_COLORS = ['#3b82f6', '#ec4899', '#f59e0b', '#22d3ee', '#8b5cf6'];
 const WINDOW_OPTIONS = ['rectangular', 'hamming', 'hanning', 'blackman', 'kaiser', 'chebyshev', 'taylor'];
 
 export default function FiveGMode() {
@@ -18,15 +19,21 @@ export default function FiveGMode() {
   const [, setTick] = useState(0);
   const forceUpdate = useCallback(() => setTick(t => t + 1), []);
 
-  // ── State ──────────────────────────────────────────────────────────────
-  const [phase, setPhase] = useState('placing');
+  // ── Config state ────────────────────────────────────────────────────
+  const [numTowers, setNumTowers] = useState(3);
+  const [numUsers, setNumUsers] = useState(2);
+
+  // ── Sim state ───────────────────────────────────────────────────────
+  const [phase, setPhase] = useState('config');
   const [towersPlaced, setTowersPlaced] = useState(0);
+  const [totalTowersNeeded, setTotalTowersNeeded] = useState(3);
   const [towerParams, setTowerParams] = useState([]);
   const [connections, setConnections] = useState([]);
   const [handoffs, setHandoffs] = useState([]);
   const [towerUpdates, setTowerUpdates] = useState({});
   const [selectedUser, setSelectedUser] = useState(0);
   const [selectedTower, setSelectedTower] = useState(-1);
+  const [userCount, setUserCount] = useState(0);
 
   // Sync state from simulator
   const syncState = useCallback(() => {
@@ -34,12 +41,14 @@ export default function FiveGMode() {
     if (!sim) return;
     setPhase(sim.phase);
     setTowersPlaced(sim.towersPlaced);
+    setTotalTowersNeeded(sim.numTowersToPlace);
     setTowerParams(sim.towers.map(t => ({ ...t })));
     setConnections([...sim.connections]);
     setHandoffs([...sim.handoffEvents]);
     setTowerUpdates({ ...sim.towerUpdates });
     setSelectedUser(sim.selectedUserIndex);
     setSelectedTower(sim.selectedTowerIndex);
+    setUserCount(sim.users.length);
   }, []);
 
   // ── Init ──────────────────────────────────────────────────────────────
@@ -82,8 +91,29 @@ export default function FiveGMode() {
     let frameCount = 0;
     renderer.startLoop((dt) => {
       renderer.clear();
-      ui.updateMovement(dt);
-      sim.update(dt);
+
+      if (sim.phase === 'config') {
+        // Draw config overlay
+        const ctx = canvas.getContext('2d');
+        const w = canvas.width, h = canvas.height;
+        ctx.save();
+        ctx.fillStyle = 'rgba(13, 15, 20, 0.6)';
+        ctx.fillRect(0, 0, w, h);
+        ctx.textAlign = 'center';
+        ctx.font = '700 24px system-ui, sans-serif';
+        ctx.fillStyle = '#61dafb';
+        ctx.fillText('5G Beamforming Simulator', w / 2, h / 2 - 40);
+        ctx.font = '400 15px system-ui, sans-serif';
+        ctx.fillStyle = 'rgba(232,236,244,0.6)';
+        ctx.fillText('Configure towers and users in the sidebar, then click Start', w / 2, h / 2);
+        ctx.font = '400 12px system-ui, sans-serif';
+        ctx.fillStyle = 'rgba(136,146,168,0.5)';
+        ctx.fillText('Use WASD or Arrow keys to move the selected user', w / 2, h / 2 + 25);
+        ctx.restore();
+        if (frameCount % 6 === 0) syncState();
+        frameCount++;
+        return;
+      }
 
       if (sim.phase === 'placing') {
         // Draw any already-placed towers
@@ -92,7 +122,7 @@ export default function FiveGMode() {
           renderer.drawTower(t, i, false, null);
         });
         // Draw placement instruction overlay
-        renderer.drawPlacementOverlay(sim.towersPlaced);
+        renderer.drawPlacementOverlay(sim.towersPlaced, sim.numTowersToPlace);
 
         // Sync React state to update sidebar
         if (frameCount % 6 === 0) syncState();
@@ -101,6 +131,9 @@ export default function FiveGMode() {
       }
 
       // ── Running phase ─────────────────────────────────────────────────
+
+      ui.updateMovement(dt);
+      sim.update(dt);
 
       // Draw interference heatmap
       if (sim.interferenceMap) {
@@ -169,6 +202,33 @@ export default function FiveGMode() {
     syncState();
   };
 
+  // ── Start game handler ────────────────────────────────────────────────
+  const handleStart = () => {
+    const sim = simRef.current;
+    if (!sim) return;
+    sim.configure(numTowers, numUsers);
+    sim.startPlacing();
+    syncState();
+  };
+
+  // ── Reset handler ─────────────────────────────────────────────────────
+  const handleReset = () => {
+    const sim = simRef.current;
+    if (!sim) return;
+    sim.phase = 'config';
+    sim.towers = [];
+    sim.users = [];
+    sim.towersPlaced = 0;
+    sim.beams = [];
+    sim.connections = [];
+    sim.handoffEvents = [];
+    sim.towerUpdates = {};
+    sim.beamProfiles = [];
+    sim.interferenceMap = null;
+    sim.allConnectivity = [];
+    syncState();
+  };
+
   // ── Render ─────────────────────────────────────────────────────────────
   return (
     <div className="fiveg-layout">
@@ -178,43 +238,95 @@ export default function FiveGMode() {
 
         <div className="sidebar-header">
           <h1>5G Beamforming</h1>
-          <div className="subtitle">3 Towers · 2 Users · Real-time Steering</div>
+          <div className="subtitle">
+            {phase === 'config'
+              ? 'Configure your simulation'
+              : `${towerParams.length} Tower${towerParams.length !== 1 ? 's' : ''} · ${userCount} User${userCount !== 1 ? 's' : ''} · Real-time Steering`}
+          </div>
         </div>
 
-        {/* Placement status */}
+        {/* ── Config phase ─────────────────────────────────────────────── */}
+        {phase === 'config' && (
+          <div className="sidebar-section">
+            <h3>Simulation Setup</h3>
+
+            {/* Number of towers */}
+            <div className="param-row">
+              <label>Towers</label>
+              <input type="range" min="1" max="5" step="1" value={numTowers}
+                onChange={e => setNumTowers(parseInt(e.target.value))} />
+              <span className="param-val">{numTowers}</span>
+            </div>
+
+            {/* Number of users */}
+            <div className="param-row">
+              <label>Users</label>
+              <input type="range" min="1" max="5" step="1" value={numUsers}
+                onChange={e => setNumUsers(parseInt(e.target.value))} />
+              <span className="param-val">{numUsers}</span>
+            </div>
+
+            <button
+              onClick={handleStart}
+              style={{
+                width: '100%', padding: '10px', marginTop: 12,
+                background: 'linear-gradient(135deg, #61dafb, #3b82f6)',
+                color: '#0d0f14', border: 'none', borderRadius: 'var(--radius-sm)',
+                cursor: 'pointer', fontWeight: 700, fontSize: 13,
+                letterSpacing: '0.02em',
+              }}
+            >
+              ▶ Start Simulation
+            </button>
+          </div>
+        )}
+
+        {/* ── Placement status ─────────────────────────────────────────── */}
         {phase === 'placing' && (
           <div className="sidebar-section">
             <h3>Setup Phase</h3>
             <div style={{ fontSize: '13px', color: '#61dafb', marginBottom: '8px' }}>
-              Click on the canvas to place tower {towersPlaced + 1} of 3
+              Click on the canvas to place tower {towersPlaced + 1} of {totalTowersNeeded}
             </div>
             <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-              {towersPlaced}/3 towers placed. Users will appear after all towers are placed.
+              {towersPlaced}/{totalTowersNeeded} towers placed. Users will appear after all towers are placed.
             </div>
           </div>
         )}
 
-        {/* User select — only when running */}
+        {/* ── Active users — only when running ─────────────────────────── */}
         {phase === 'running' && (
           <div className="sidebar-section">
-            <h3>Active Users</h3>
-            <div className="user-pills">
-              {[0, 1].map(i => (
-                <button key={i} className={`user-pill ${selectedUser === i ? 'active' : ''}`} onClick={() => selectUser(i)}>
-                  User {i + 1} {i === 0 ? '(WASD)' : '(↑↓←→)'}
+            <h3>Active Users — <span style={{ color: '#61dafb', fontWeight: 400, textTransform: 'none' }}>click or Tab to select</span></h3>
+            <div className="user-pills" style={{ flexWrap: 'wrap' }}>
+              {Array.from({ length: userCount }, (_, i) => (
+                <button
+                  key={i}
+                  className={`user-pill ${selectedUser === i ? 'active' : ''}`}
+                  onClick={() => selectUser(i)}
+                  style={{
+                    borderColor: selectedUser === i ? USER_COLORS[i % USER_COLORS.length] : undefined,
+                    color: selectedUser === i ? USER_COLORS[i % USER_COLORS.length] : undefined,
+                    background: selectedUser === i ? `${USER_COLORS[i % USER_COLORS.length]}18` : undefined,
+                  }}
+                >
+                  User {i + 1} {selectedUser === i ? '✦' : ''}
                 </button>
               ))}
             </div>
+            <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>
+              WASD or ↑↓←→ moves the selected user
+            </div>
           </div>
         )}
 
-        {/* Tower parameter cards */}
+        {/* ── Tower parameter cards ─────────────────────────────────────── */}
         {towerParams.map((t, i) => (
           <div className="sidebar-section" key={t.id} style={{ paddingBottom: '10px' }}>
             <div className={`tower-card ${selectedTower === i ? 'selected' : ''}`}>
               <div className="tower-card-header">
-                <div className="tower-dot" style={{ background: TOWER_COLORS[i] }}></div>
-                <span>{TOWER_NAMES[i]}</span>
+                <div className="tower-dot" style={{ background: TOWER_COLORS[i % TOWER_COLORS.length] }}></div>
+                <span>{TOWER_NAMES[i] || `Tower ${i + 1}`}</span>
                 {towerUpdates[t.id] && towerUpdates[t.id].reason !== 'stable' && towerUpdates[t.id].reason !== 'no users' && (
                   <div className="auto-badge">AUTO</div>
                 )}
@@ -294,7 +406,7 @@ export default function FiveGMode() {
                 <div className="conn-card" key={c.user_id + c.tower_id}>
                   <div>
                     <span className="conn-label">User {uIdx + 1}</span>
-                    <span style={{ color: TOWER_COLORS[tIdx] || '#888' }}> → {TOWER_NAMES[tIdx] || '?'}</span>
+                    <span style={{ color: TOWER_COLORS[tIdx % TOWER_COLORS.length] || '#888' }}> → {TOWER_NAMES[tIdx] || '?'}</span>
                   </div>
                   <div>
                     <span className="conn-metric" style={{ marginRight: '8px' }}>SNR {c.snr_db}dB</span>
@@ -326,16 +438,36 @@ export default function FiveGMode() {
           </div>
         )}
 
-        {/* Keyboard hints */}
-        <div className="keyboard-hint">
-          {phase === 'placing'
+        {/* Reset + keyboard hints */}
+        <div className="keyboard-hint" style={{ flexDirection: 'column', gap: 6 }}>
+          {phase === 'config'
+            ? <div>⚙️ Configure towers & users above</div>
+            : phase === 'placing'
             ? <div>🖱️ Click canvas to place towers</div>
             : <>
-                <div><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> User 1</div>
-                <div><kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd> User 2</div>
-                <div><kbd>Tab</kbd> Switch highlight</div>
+                <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                  <div><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or <kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd> Move selected</div>
+                </div>
+                <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                  <div><kbd>Tab</kbd> Next user</div>
+                  <div><kbd>1</kbd>–<kbd>5</kbd> Select user</div>
+                  <div>🖱️ Click to select</div>
+                </div>
               </>
           }
+          {phase !== 'config' && (
+            <button
+              onClick={handleReset}
+              style={{
+                marginTop: 4, padding: '5px 12px',
+                background: 'rgba(239,68,68,0.12)', color: '#ef4444',
+                border: '1px solid rgba(239,68,68,0.3)', borderRadius: 'var(--radius-sm)',
+                cursor: 'pointer', fontWeight: 600, fontSize: 10,
+              }}
+            >
+              ✕ Reset Simulation
+            </button>
+          )}
         </div>
       </div>
 
@@ -359,8 +491,8 @@ export default function FiveGMode() {
             const uIdx = simRef.current?.users.findIndex(u => u.id === c.user_id) ?? -1;
             return (
               <div key={c.user_id} className="mb-2">
-                <span style={{ color: TOWER_COLORS[tIdx] }}>■</span>{' '}
-                {TOWER_NAMES[tIdx]} → User {uIdx + 1}:{' '}
+                <span style={{ color: TOWER_COLORS[tIdx % TOWER_COLORS.length] }}>■</span>{' '}
+                {TOWER_NAMES[tIdx] || `Tower ${tIdx + 1}`} → User {uIdx + 1}:{' '}
                 <span>{c.signal_dbm}dBm</span> · <span>{c.distance_m}m</span>
               </div>
             );

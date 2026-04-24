@@ -33,8 +33,9 @@ class RadarTickRequest(BaseModel):
 
     # Quality
     detection_threshold: float = 0.3   # Param 5: [0, 1]
-    snr: float = 100.0                  # Param 6: [0, 1000]
-    window_type: str = "rectangular"    # Param 7
+    snr: float = 100.0                  # Param 6: SNR [0, 1000]
+    window_type: str = "rectangular"    # Param 7: apodization window
+    pulse_frequency: float = 1000.0     # PRF in Hz (pulse repetition freq)
 
     targets: List[Target] = []
     dt: float = 0.016               # seconds since last tick (≈60 fps)
@@ -99,3 +100,43 @@ class PatternResponse(BaseModel):
 class DelaysResponse(BaseModel):
     """Response for element delay query."""
     delays: List[float]
+
+
+# ── Lock and Size ─────────────────────────────────────────────────────────────
+
+class LockTarget(BaseModel):
+    """A target that has been detected and is a candidate for sizing lock."""
+    id: str
+    x: float
+    y: float
+    rcs: float
+    consecutive_detections: int = 0
+
+
+class LockSizeRequest(BaseModel):
+    """Request for Lock-and-Size evaluation."""
+    num_elements: int = 32
+    spacing_m: float = 0.015
+    frequency: float = 10e9
+    targets: List[LockTarget] = []
+    lock_factor: float = 3.0          # beam narrowing factor
+    consecutive_threshold: int = 2    # detections needed to trigger lock
+
+
+class SizedTarget(BaseModel):
+    """A single target's sizing result after lock."""
+    target_id: str
+    locked: bool
+    wide_beam_width: float
+    narrow_beam_width: float
+    effective_elements: int
+    size_category: Optional[str] = None
+    estimated_extent_deg: Optional[float] = None
+    scan_sector_min: Optional[float] = None
+    scan_sector_max: Optional[float] = None
+
+
+class LockSizeResponse(BaseModel):
+    """Response for Lock-and-Size evaluation."""
+    locked_target_ids: List[str]
+    sizing_results: List[SizedTarget]
