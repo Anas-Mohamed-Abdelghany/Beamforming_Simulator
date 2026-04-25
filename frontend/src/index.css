@@ -176,21 +176,48 @@ html, body, #root {
   flex-shrink: 0;
 }
 .param-row input[type="range"] {
-  flex: 1;
-  height: 4px;
   -webkit-appearance: none;
   appearance: none;
+  flex: 1;
+  height: 4px;
   background: var(--border);
   border-radius: 2px;
   outline: none;
+  cursor: pointer;
+  margin: 10px 0;
 }
+
+/* Chrome/Safari/Edge */
 .param-row input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
-  width: 14px; height: 14px;
-  border-radius: 50%;
+  appearance: none;
+  width: 16px;
+  height: 16px;
   background: var(--accent-cyan);
+  border: 2px solid var(--bg-secondary);
+  border-radius: 50%;
+  box-shadow: 0 0 10px rgba(34, 211, 238, 0.4);
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+.param-row input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.1);
+  box-shadow: 0 0 15px rgba(34, 211, 238, 0.6);
+}
+
+/* Firefox */
+.param-row input[type="range"]::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  background: var(--accent-cyan);
+  border: 2px solid var(--bg-secondary);
+  border-radius: 50%;
+  box-shadow: 0 0 10px rgba(34, 211, 238, 0.4);
   cursor: pointer;
-  box-shadow: 0 0 6px rgba(97,218,251,.4);
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+.param-row input[type="range"]::-moz-range-thumb:hover {
+  transform: scale(1.1);
+  box-shadow: 0 0 15px rgba(34, 211, 238, 0.6);
 }
 .param-row .param-val {
   font-size: 11px;
@@ -351,3 +378,12 @@ html, body, #root {
 .mt-2 { margin-top: 8px; }
 .mb-2 { margin-bottom: 8px; }
 .flex-between { display: flex; justify-content: space-between; align-items: center; }
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.spinning {
+  animation: spin 1s linear infinite;
+  display: inline-block;
+}

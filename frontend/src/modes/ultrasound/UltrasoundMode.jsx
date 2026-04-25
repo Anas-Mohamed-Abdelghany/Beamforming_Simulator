@@ -34,7 +34,7 @@ const S = {
     background: 'var(--bg-primary)',
   },
   sidebar: {
-    width: 260, minWidth: 260, background: 'var(--bg-secondary)',
+    width: 320, minWidth: 320, background: 'var(--bg-secondary)',
     borderRight: '1px solid var(--border)', display: 'flex',
     flexDirection: 'column', overflowY: 'auto',
   },
@@ -140,61 +140,77 @@ const S = {
 
 export default function UltrasoundMode() {
   // ── State
-  const [phantom,    setPhantom]    = useState(null);
-  const [aData,      setAData]      = useState(null);
-  const [bData,      setBData]      = useState(null);
-  const [doppler,    setDoppler]    = useState(null);
-  const [loading,    setLoading]    = useState(true);
-  const [error,      setError]      = useState(null);
+  const [phantom, setPhantom] = useState(null);
+  const [aData, setAData] = useState(null);
+  const [bData, setBData] = useState(null);
+  const [doppler, setDoppler] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const [beam,    setBeam]    = useState({ ...DEFAULT_BEAM });
-  const [probe,   setProbe]   = useState({ ...DEFAULT_PROBE });
-  const [bmode,   setBmode]   = useState({ ...DEFAULT_BMODE });
-  const [dop,     setDop]     = useState({ ...DEFAULT_DOPPLER });
+  const [params, setParams] = useState({
+    ...DEFAULT_BEAM,
+    ...DEFAULT_PROBE,
+    ...DEFAULT_BMODE,
+    ...DEFAULT_DOPPLER,
+  });
 
-  const [hoveredIdx,  setHoveredIdx]  = useState(null);
-  const [hoveredPos,  setHoveredPos]  = useState({ x: 0, y: 0 });
-  const [editIdx,     setEditIdx]     = useState(null);
-  const [editVals,    setEditVals]    = useState({});
-  const [dragging,    setDragging]    = useState(false);
+  const [hoveredIdx, setHoveredIdx] = useState(null);
+  const [hoveredPos, setHoveredPos] = useState({ x: 0, y: 0 });
+  const [editIdx, setEditIdx] = useState(null);
+  const [editVals, setEditVals] = useState({});
+  const [dragging, setDragging] = useState(false);
+
+  const [isScanning, setIsScanning] = useState(false);
+  const [isDopplerLoading, setIsDopplerLoading] = useState(false);
+  const [lastUpdate, setLastUpdate] = useState(null);
 
   // ── Canvas refs
   const phantomRef = useRef(null);
-  const amodeRef   = useRef(null);
-  const bmodeRef   = useRef(null);
+  const amodeRef = useRef(null);
+  const bmodeRef = useRef(null);
 
   // ── Stable debounced scan via useRef
   const scanRef = useRef(null);
   useEffect(() => {
-    const fn = debounce(async (probeState, beamState, bmodeState) => {
+    const fn = debounce(async (p) => {
       try {
         const [aRes, bRes] = await Promise.all([
-          fetchAMode(probeState, beamState),
-          fetchBMode(probeState, beamState, bmodeState.aperture_cm, bmodeState.n_lines),
+          fetchAMode({ probe_x_cm: p.probe_x_cm, probe_y_cm: p.probe_y_cm, angle_deg: p.angle_deg },
+                     { frequency_mhz: p.frequency_mhz, n_elements: p.n_elements, spacing_mm: p.spacing_mm, curvature_mm: p.curvature_mm, focal_depth_mm: p.focal_depth_mm, snr: p.snr, apodization: p.apodization }),
+          fetchBMode({ probe_x_cm: p.probe_x_cm, probe_y_cm: p.probe_y_cm, angle_deg: p.angle_deg },
+                     { frequency_mhz: p.frequency_mhz, n_elements: p.n_elements, spacing_mm: p.spacing_mm, curvature_mm: p.curvature_mm, focal_depth_mm: p.focal_depth_mm, snr: p.snr, apodization: p.apodization },
+                     p.aperture_cm, p.n_lines),
         ]);
         setAData(aRes);
         setBData(bRes);
+        setLastUpdate(new Date().toLocaleTimeString());
+        console.log('Ultrasound output updated:', new Date().toLocaleTimeString());
       } catch (e) {
         console.warn('Scan error:', e.message);
+      } finally {
+        setIsScanning(false);
       }
-    }, 150);
+    }, 300);
     scanRef.current = fn;
   }, []);
 
   const dopplerRef = useRef(null);
   useEffect(() => {
-    const fn = debounce(async (dopState, freqMhz) => {
+    const fn = debounce(async (p) => {
       try {
         const res = await fetchDoppler(
-          dopState.velocity_cm_s,
-          dopState.vessel_angle_deg,
-          freqMhz,
+          p.velocity_cm_s,
+          p.vessel_angle_deg,
+          p.frequency_mhz,
         );
         setDoppler(res);
+        setLastUpdate(new Date().toLocaleTimeString());
       } catch (e) {
         console.warn('Doppler error:', e.message);
+      } finally {
+        setIsDopplerLoading(false);
       }
-    }, 150);
+    }, 300);
     dopplerRef.current = fn;
   }, []);
 
@@ -221,37 +237,43 @@ export default function UltrasoundMode() {
     })();
   }, []);
 
-  // ── Re-scan whenever beam/probe/bmode changes
+  // ── Re-scan whenever params change
   useEffect(() => {
-    if (phantom && scanRef.current) scanRef.current(probe, beam, bmode);
-  }, [probe, beam, bmode, phantom]);
+    if (phantom && scanRef.current) {
+      setIsScanning(true);
+      scanRef.current(params);
+    }
+  }, [params.probe_x_cm, params.angle_deg, params.frequency_mhz, params.n_elements, params.spacing_mm, params.curvature_mm, params.focal_depth_mm, params.snr, params.apodization, params.aperture_cm, params.n_lines, phantom]);
 
-  // ── Re-fetch Doppler on dop/beam.frequency_mhz change
+  // ── Re-fetch Doppler on params change
   useEffect(() => {
-    if (phantom && dopplerRef.current) dopplerRef.current(dop, beam.frequency_mhz);
-  }, [dop, beam.frequency_mhz, phantom]);
+    if (phantom && dopplerRef.current) {
+      setIsDopplerLoading(true);
+      dopplerRef.current(params);
+    }
+  }, [params.velocity_cm_s, params.vessel_angle_deg, params.frequency_mhz, phantom]);
 
   // ── Draw phantom canvas
   useEffect(() => {
     const canvas = phantomRef.current;
     if (!canvas || !phantom) return;
-    if (canvas.width < 10) canvas.width  = canvas.offsetWidth  || 400;
+    if (canvas.width < 10) canvas.width = canvas.offsetWidth || 400;
     if (canvas.height < 10) canvas.height = canvas.offsetHeight || 400;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     const W = canvas.width, H = canvas.height;
     const probeNorm = {
-      x_norm: probe.probe_x_cm / (phantom.width_cm  || 8),
+      x_norm: params.probe_x_cm / (phantom.width_cm || 8),
       y_norm: 0.01,
     };
-    drawPhantom(ctx, phantom.ellipses, W, H, hoveredIdx, probeNorm, probe.angle_deg);
-  }, [phantom, hoveredIdx, probe]);
+    drawPhantom(ctx, phantom.ellipses, W, H, hoveredIdx, probeNorm, params.angle_deg);
+  }, [phantom, hoveredIdx, params.probe_x_cm, params.angle_deg]);
 
   // ── Draw A-mode canvas
   useEffect(() => {
     const canvas = amodeRef.current;
     if (!canvas) return;
-    if (canvas.width < 10) canvas.width  = canvas.offsetWidth  || 300;
+    if (canvas.width < 10) canvas.width = canvas.offsetWidth || 300;
     if (canvas.height < 10) canvas.height = canvas.offsetHeight || 200;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
@@ -264,13 +286,13 @@ export default function UltrasoundMode() {
   useEffect(() => {
     const canvas = bmodeRef.current;
     if (!canvas) return;
-    if (canvas.width < 10) canvas.width  = canvas.offsetWidth  || 300;
+    if (canvas.width < 10) canvas.width = canvas.offsetWidth || 300;
     if (canvas.height < 10) canvas.height = canvas.offsetHeight || 200;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     if (bData) {
       drawBMode(ctx, bData.image, canvas.width, canvas.height,
-                bData.width_cm, bData.depth_cm);
+        bData.width_cm, bData.depth_cm);
     }
   }, [bData]);
 
@@ -281,7 +303,7 @@ export default function UltrasoundMode() {
         const c = ref.current;
         if (!c) continue;
         const rect = c.getBoundingClientRect();
-        if (rect.width > 0)  c.width  = Math.round(rect.width);
+        if (rect.width > 0) c.width = Math.round(rect.width);
         if (rect.height > 0) c.height = Math.round(rect.height);
       }
     }
@@ -297,13 +319,13 @@ export default function UltrasoundMode() {
   function ellipseAt(normX, normY) {
     if (!phantom) return null;
     for (let i = phantom.ellipses.length - 1; i >= 0; i--) {
-      const e   = phantom.ellipses[i];
+      const e = phantom.ellipses[i];
       const cos = Math.cos(e.angle_deg * Math.PI / 180);
       const sin = Math.sin(e.angle_deg * Math.PI / 180);
-      const dx  = normX - e.centre_x;
-      const dy  = normY - e.centre_y;
-      const u   =  dx * cos + dy * sin;
-      const v   = -dx * sin + dy * cos;
+      const dx = normX - e.centre_x;
+      const dy = normY - e.centre_y;
+      const u = dx * cos + dy * sin;
+      const v = -dx * sin + dy * cos;
       if ((u / e.semi_x) ** 2 + (v / e.semi_y) ** 2 <= 1.0) return i;
     }
     return null;
@@ -313,8 +335,8 @@ export default function UltrasoundMode() {
   function canvasNorm(canvas, clientX, clientY) {
     const rect = canvas.getBoundingClientRect();
     return {
-      nx: (clientX - rect.left)  / rect.width,
-      ny: (clientY - rect.top)   / rect.height,
+      nx: (clientX - rect.left) / rect.width,
+      ny: (clientY - rect.top) / rect.height,
     };
   }
 
@@ -343,7 +365,7 @@ export default function UltrasoundMode() {
     if (!canvas || !phantom) return;
     const { nx } = canvasNorm(canvas, e.clientX, e.clientY);
     const newX = Math.max(0, Math.min(phantom.width_cm, nx * phantom.width_cm));
-    setProbe(p => ({ ...p, probe_x_cm: +newX.toFixed(2) }));
+    update('probe_x_cm', +newX.toFixed(2));
   }
 
   function handlePhantomMouseUp() { setDragging(false); }
@@ -357,10 +379,10 @@ export default function UltrasoundMode() {
       const el = phantom.ellipses[idx];
       setEditIdx(idx);
       setEditVals({
-        acoustic_impedance:    el.acoustic_impedance,
-        attenuation:           el.attenuation,
+        acoustic_impedance: el.acoustic_impedance,
+        attenuation: el.attenuation,
         reflection_coefficient: el.reflection_coefficient,
-        label:                 el.label,
+        label: el.label,
       });
     }
   }
@@ -370,10 +392,10 @@ export default function UltrasoundMode() {
     if (editIdx === null) return;
     try {
       await patchEllipse(editIdx, {
-        acoustic_impedance:    parseFloat(editVals.acoustic_impedance),
-        attenuation:           parseFloat(editVals.attenuation),
+        acoustic_impedance: parseFloat(editVals.acoustic_impedance),
+        attenuation: parseFloat(editVals.attenuation),
         reflection_coefficient: parseFloat(editVals.reflection_coefficient),
-        label:                 editVals.label,
+        label: editVals.label,
       });
       const ph = await fetchPhantom();
       setPhantom(ph);
@@ -383,51 +405,40 @@ export default function UltrasoundMode() {
     }
   }
 
+  // ── Unified change handler
+  const update = (key, val) => {
+    setParams(p => ({ ...p, [key]: val }));
+  };
+
   async function handleReset() {
     try {
       await resetPhantom();
       const ph = await fetchPhantom();
       setPhantom(ph);
       setEditIdx(null);
-      setBeam({ ...DEFAULT_BEAM });
-      setBmode({ ...DEFAULT_BMODE });
-      setProbe({ ...DEFAULT_PROBE });
-      setDop({ ...DEFAULT_DOPPLER });
+      setParams({
+        ...DEFAULT_BEAM,
+        ...DEFAULT_PROBE,
+        ...DEFAULT_BMODE,
+        ...DEFAULT_DOPPLER,
+      });
     } catch (e) {
       console.error('Reset failed:', e.message);
     }
   }
 
-  // ── Slider change handlers
-  function onBeam(key, val) {
-    const v = key === 'n_elements' ? parseInt(val, 10) : parseFloat(val);
-    setBeam(b => ({ ...b, [key]: v }));
-  }
-  function onProbeSlider(key, val) {
-    setProbe(p => ({ ...p, [key]: parseFloat(val) }));
-  }
-  function onBmode(key, val) {
-    const v = key === 'n_lines' ? parseInt(val, 10) : parseFloat(val);
-    setBmode(b => ({ ...b, [key]: v }));
-  }
-  function onDop(key, val) {
-    setDop(d => ({ ...d, [key]: parseFloat(val) }));
-  }
-
-  // ── Render helpers
-  function SliderRow({ def, value, onChange }) {
+  // ── Slider helpers
+  function SliderRow({ meta, value, onChange }) {
     return (
-      <div style={S.paramRow}>
-        <span style={S.label}>{def.label}</span>
+      <div className="param-row">
+        <label>{meta.label}</label>
         <input
-          id={`us-slider-${def.key}`}
           type="range"
-          min={def.min} max={def.max} step={def.step}
+          min={meta.min} max={meta.max} step={meta.step}
           value={value}
-          onChange={e => onChange(def.key, e.target.value)}
-          style={S.input}
+          onChange={e => onChange(meta.key, parseFloat(e.target.value))}
         />
-        <span style={S.val}>{typeof value === 'number' ? value.toFixed(def.step < 1 ? 1 : 0) : value}{def.unit}</span>
+        <span className="param-val">{value.toFixed(meta.decimals)}{meta.unit}</span>
       </div>
     );
   }
@@ -464,37 +475,49 @@ export default function UltrasoundMode() {
       {/* ══ LEFT SIDEBAR ══════════════════════════════════════════════════════ */}
       <div style={S.sidebar}>
         <div style={S.sideHeader}>
-          <div style={S.sideTitle}>🩺 Ultrasound</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={S.sideTitle}>🩺 Ultrasound</div>
+            {(isScanning || isDopplerLoading) && (
+              <div title="Computing scan..." style={{ color: '#22d3ee', fontSize: 14 }}>
+                🔄
+              </div>
+            )}
+          </div>
           <div style={S.sideSubtitle}>Imaging Simulator · M2</div>
+          {lastUpdate && (
+            <div style={{ fontSize: 9, color: '#4ade80', marginTop: 4, fontFamily: 'var(--font-mono)' }}>
+              ✓ Output Updated: {lastUpdate}
+            </div>
+          )}
         </div>
 
         {/* Probe section */}
         <div style={S.section}>
           <div style={S.sectionTitle}>Probe · Scan Line</div>
-          {PROBE_SLIDERS.map(def => (
-            <SliderRow key={def.key} def={def} value={probe[def.key]} onChange={onProbeSlider} />
+          {PROBE_SLIDERS.map(meta => (
+            <SliderRow key={meta.key} meta={meta} value={params[meta.key]} onChange={update} />
           ))}
-          <div style={{ ...S.paramRow, marginTop: 4 }}>
-            <span style={S.label}>Position X</span>
-            <span style={{ ...S.val, flex: 1, textAlign: 'left', paddingLeft: 8 }}>
-              {probe.probe_x_cm.toFixed(2)} cm
+          <div className="param-row" style={{ marginTop: 4 }}>
+            <label>Position X</label>
+            <span className="param-val" style={{ flex: 1, textAlign: 'left', paddingLeft: 8 }}>
+              {params.probe_x_cm.toFixed(2)} cm
             </span>
-            <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>(drag on map)</span>
+            <span style={{ fontSize: 9, color: 'var(--text-muted)', marginLeft: 'auto' }}>(drag on map)</span>
           </div>
         </div>
 
         {/* Beamforming parameters */}
         <div style={S.section}>
           <div style={S.sectionTitle}>Beamforming · 7 Parameters</div>
-          {BEAM_SLIDERS.map(def => (
-            <SliderRow key={def.key} def={def} value={beam[def.key]} onChange={onBeam} />
+          {BEAM_SLIDERS.map(meta => (
+            <SliderRow key={meta.key} meta={meta} value={params[meta.key]} onChange={update} />
           ))}
-          <div style={S.paramRow}>
-            <span style={S.label}>Apodization</span>
+          <div className="param-row">
+            <label>Apodization</label>
             <select
               id="us-apodization"
-              value={beam.apodization}
-              onChange={e => setBeam(b => ({ ...b, apodization: e.target.value }))}
+              value={params.apodization}
+              onChange={e => update('apodization', e.target.value)}
               style={S.select}
             >
               {APODIZATION_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
@@ -505,16 +528,16 @@ export default function UltrasoundMode() {
         {/* B-mode */}
         <div style={S.section}>
           <div style={S.sectionTitle}>B-Mode Scan</div>
-          {BMODE_SLIDERS.map(def => (
-            <SliderRow key={def.key} def={def} value={bmode[def.key]} onChange={onBmode} />
+          {BMODE_SLIDERS.map(meta => (
+            <SliderRow key={meta.key} meta={meta} value={params[meta.key]} onChange={update} />
           ))}
         </div>
 
         {/* Doppler */}
         <div style={S.section}>
           <div style={S.sectionTitle}>Doppler · Blood Vessel</div>
-          {DOPPLER_SLIDERS.map(def => (
-            <SliderRow key={def.key} def={def} value={dop[def.key]} onChange={onDop} />
+          {DOPPLER_SLIDERS.map(meta => (
+            <SliderRow key={meta.key} meta={meta} value={params[meta.key]} onChange={update} />
           ))}
           {doppler && (
             <div style={{
@@ -528,7 +551,7 @@ export default function UltrasoundMode() {
                 cos θ = {doppler.cos_theta.toFixed(3)} · f₀ = {doppler.frequency_mhz} MHz
               </div>
               <div style={{ color: 'var(--text-muted)', marginTop: 2 }}>
-                v = {doppler.velocity_cm_s} cm/s · θ = {doppler.angle_deg}°
+                v = {params.velocity_cm_s} cm/s · θ = {params.vessel_angle_deg}°
               </div>
             </div>
           )}
@@ -576,7 +599,7 @@ export default function UltrasoundMode() {
             <div style={{
               ...S.tooltip,
               left: Math.min(hoveredPos.x - (phantomRef.current?.getBoundingClientRect().left || 0) + 12, 220),
-              top:  hoveredPos.y - (phantomRef.current?.getBoundingClientRect().top  || 0) + 12,
+              top: hoveredPos.y - (phantomRef.current?.getBoundingClientRect().top || 0) + 12,
             }}>
               <div style={{ fontWeight: 700, color: '#22d3ee', marginBottom: 4 }}>
                 {phantom.ellipses[hoveredIdx]?.label}
@@ -598,8 +621,8 @@ export default function UltrasoundMode() {
                 ✏️ Edit — {phantom.ellipses[editIdx]?.label}
               </div>
               {[
-                { key: 'acoustic_impedance',    label: 'Impedance (MRayl)', step: 0.01 },
-                { key: 'attenuation',           label: 'Attenuation (dB/cm/MHz)', step: 0.1 },
+                { key: 'acoustic_impedance', label: 'Impedance (MRayl)', step: 0.01 },
+                { key: 'attenuation', label: 'Attenuation (dB/cm/MHz)', step: 0.1 },
                 { key: 'reflection_coefficient', label: 'Reflection Coeff.', step: 0.001 },
               ].map(({ key, label }) => (
                 <div style={S.editRow} key={key}>
@@ -643,11 +666,11 @@ export default function UltrasoundMode() {
           color: 'var(--text-muted)', display: 'flex', gap: 20,
           fontFamily: 'var(--font-mono)',
         }}>
-          <span>x = <span style={{ color: '#22d3ee' }}>{probe.probe_x_cm.toFixed(2)} cm</span></span>
-          <span>θ  = <span style={{ color: '#22d3ee' }}>{probe.angle_deg}°</span></span>
-          <span>f₀ = <span style={{ color: '#22d3ee' }}>{beam.frequency_mhz} MHz</span></span>
+          <span>x = <span style={{ color: '#22d3ee' }}>{params.probe_x_cm.toFixed(2)} cm</span></span>
+          <span>θ  = <span style={{ color: '#22d3ee' }}>{params.angle_deg}°</span></span>
+          <span>f₀ = <span style={{ color: '#22d3ee' }}>{params.frequency_mhz} MHz</span></span>
           <span>F/# = <span style={{ color: '#22d3ee' }}>
-            {(beam.focal_depth_mm / (beam.n_elements * beam.spacing_mm)).toFixed(2)}
+            {(params.focal_depth_mm / (params.n_elements * params.spacing_mm)).toFixed(2)}
           </span></span>
           {doppler && (
             <span>fd = <span style={{ color: '#4ade80' }}>{doppler.fd_hz.toFixed(1)} Hz</span></span>

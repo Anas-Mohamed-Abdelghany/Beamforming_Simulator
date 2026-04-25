@@ -40,12 +40,12 @@ export const DEFAULT_DOPPLER = {
 
 /** @type {SliderDef[]} */
 export const BEAM_SLIDERS = [
-  { key: 'frequency_mhz',  label: 'Frequency',    min: 1.0,  max: 15.0,  step: 0.5,  unit: 'MHz' },
-  { key: 'n_elements',     label: 'Elements',     min: 16,   max: 256,   step: 8,    unit: ''    },
-  { key: 'spacing_mm',     label: 'Pitch',        min: 0.1,  max: 1.5,   step: 0.05, unit: 'mm'  },
-  { key: 'curvature_mm',   label: 'Curvature',    min: 0.0,  max: 200.0, step: 5.0,  unit: 'mm'  },
-  { key: 'focal_depth_mm', label: 'Focal Depth',  min: 5.0,  max: 150.0, step: 5.0,  unit: 'mm'  },
-  { key: 'snr',            label: 'SNR',          min: 0,    max: 1000,  step: 10,   unit: ''    },
+  { key: 'frequency_mhz',  label: 'Frequency',    min: 1.0,  max: 15.0,  step: 0.5,  unit: 'MHz', decimals: 1 },
+  { key: 'n_elements',     label: 'Elements',     min: 16,   max: 256,   step: 8,    unit: '',    decimals: 0 },
+  { key: 'spacing_mm',     label: 'Pitch',        min: 0.1,  max: 1.5,   step: 0.05, unit: 'mm',   decimals: 2 },
+  { key: 'curvature_mm',   label: 'Curvature',    min: 0.0,  max: 200.0, step: 5.0,  unit: 'mm',   decimals: 0 },
+  { key: 'focal_depth_mm', label: 'Focal Depth',  min: 5.0,  max: 150.0, step: 5.0,  unit: 'mm',   decimals: 0 },
+  { key: 'snr',            label: 'SNR',          min: 0,    max: 1000,  step: 10,   unit: '',    decimals: 0 },
 ];
 
 /** Supported apodization windows */
@@ -53,19 +53,19 @@ export const APODIZATION_OPTIONS = ['none', 'hanning', 'hamming', 'blackman'];
 
 /** @type {SliderDef[]} */
 export const DOPPLER_SLIDERS = [
-  { key: 'velocity_cm_s',    label: 'Blood Vel.',  min: 1.0,  max: 200.0, step: 1.0,  unit: 'cm/s' },
-  { key: 'vessel_angle_deg', label: 'Angle θ',     min: 0.0,  max: 89.0,  step: 1.0,  unit: '°'    },
+  { key: 'velocity_cm_s',    label: 'Blood Vel.',  min: 1.0,  max: 200.0, step: 1.0,  unit: 'cm/s', decimals: 0 },
+  { key: 'vessel_angle_deg', label: 'Angle θ',     min: 0.0,  max: 89.0,  step: 1.0,  unit: '°',    decimals: 0 },
 ];
 
 /** @type {SliderDef[]} */
 export const PROBE_SLIDERS = [
-  { key: 'angle_deg', label: 'Steer Angle', min: -30.0, max: 30.0, step: 1.0, unit: '°' },
+  { key: 'angle_deg', label: 'Steer Angle', min: -30.0, max: 30.0, step: 1.0, unit: '°', decimals: 0 },
 ];
 
 /** @type {SliderDef[]} */
 export const BMODE_SLIDERS = [
-  { key: 'aperture_cm', label: 'Aperture', min: 0.5, max: 8.0, step: 0.5, unit: 'cm' },
-  { key: 'n_lines',     label: 'Lines',    min: 16,  max: 128, step: 8,   unit: ''   },
+  { key: 'aperture_cm', label: 'Aperture', min: 0.5, max: 8.0, step: 0.5, unit: 'cm', decimals: 1 },
+  { key: 'n_lines',     label: 'Lines',    min: 16,  max: 128, step: 8,   unit: '',   decimals: 0 },
 ];
 
 // ── Colour map: label index → RGBA ────────────────────────────────────────────
