@@ -19,8 +19,8 @@ from backend.routes.doppler  import router as doppler_router
 from backend.routes.advanced import router as advanced_router
 from backend.routes.radar      import router as radar_router
 
-# Optional — comment out until M2/M3 create their routers
-# from backend.routes.ultrasound import router as ultrasound_router
+# M2 Ultrasound router
+from backend.routes.ultrasound import router as ultrasound_router
 
 # ── App setup ──────────────────────────────────────────────────────────────
 app = FastAPI(
@@ -43,10 +43,9 @@ app.include_router(doppler_router,  prefix="/api/doppler",  tags=["Doppler"])
 app.include_router(advanced_router, prefix="/api/advanced", tags=["DAS vs MVDR"])
 app.include_router(radar_router,      prefix="/api/radar",      tags=["Radar"])
 
-# Uncomment when M2/M3 are ready:
-# app.include_router(ultrasound_router, prefix="/api/ultrasound", tags=["Ultrasound"])
+app.include_router(ultrasound_router, prefix="/api/ultrasound", tags=["Ultrasound"])
 
 
 @app.get("/health")
 def health_check():
-    return {"status": "ok", "modes": ["5g", "doppler", "advanced", "radar"]}
+    return {"status": "ok", "modes": ["5g", "ultrasound", "doppler", "advanced", "radar"]}

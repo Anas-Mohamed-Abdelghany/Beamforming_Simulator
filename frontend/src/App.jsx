@@ -3,6 +3,7 @@ import FiveGMode from './modes/5g/FiveGMode.jsx'
 import DopplerMode from './advanced/DopplerMode.jsx'
 import RadarMode from './modes/radar/RadarMode.jsx'
 import AdvancedMode from './advanced/AdvancedMode.jsx'
+import UltrasoundMode from './modes/ultrasound/UltrasoundMode.jsx'
 import './index.css'
 
 /* ── Tab configuration ──────────────────────────────────────────────────── */
@@ -12,8 +13,7 @@ const TABS = [
     label: 'Ultrasound',
     icon: '🩺',
     accent: '#22d3ee',
-    placeholder: true,
-    ownerLabel: 'M2',
+    placeholder: false,
   },
   {
     id: '5g',
@@ -82,11 +82,12 @@ export default function App() {
 
   function renderMode() {
     switch (activeTab) {
-      case '5g': return <FiveGMode />
-      case 'doppler': return <DopplerMode />
-      case 'advanced': return <AdvancedMode />
-      case 'radar': return <RadarMode />
-      default: return <PlaceholderMode tab={current} />
+      case 'ultrasound': return <UltrasoundMode />
+      case '5g':         return <FiveGMode />
+      case 'doppler':    return <DopplerMode />
+      case 'advanced':   return <AdvancedMode />
+      case 'radar':      return <RadarMode />
+      default:           return <PlaceholderMode tab={current} />
     }
   }
 
