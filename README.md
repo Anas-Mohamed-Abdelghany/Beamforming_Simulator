@@ -16,6 +16,18 @@
 
 ---
 
+## 📸 Screenshots
+
+| ⚕️ Ultrasound Simulator | 📶 5G Beamforming |
+| :---: | :---: |
+| <img width="960" height="445" alt="Ultrasound" src="https://github.com/user-attachments/assets/4368dc63-3b14-4be0-920c-1a10e7c600af" /> | <img width="960" height="445" alt="5G Simulation" src="https://github.com/user-attachments/assets/5170f78b-1670-4eef-8ea9-911eddfcf394" /> |
+
+| 🎯 Radar Tracking (PPI) | 🩸 Doppler & Advanced |
+| :---: | :---: |
+| <img width="960" height="443" alt="Radar" src="https://github.com/user-attachments/assets/209f7d64-ce9c-496f-90fc-414fa84a37bb" /> | <img width="960" height="446" alt="Doppler" src="https://github.com/user-attachments/assets/3f10a867-76bf-40ed-9ef4-9a9a2a61bc6a" /> |
+
+---
+
 ## 🌟 Overview
 
 **Beamforming Simulator** is a comprehensive, interactive web application for exploring the physics of **phased-array beamforming** across five distinct domains. All wave physics, signal processing, and array computations are performed on a Python/NumPy backend, while the React frontend delivers premium real-time visualizations at 60 FPS.
@@ -201,22 +213,6 @@ Side-by-side **Phased Array vs Rotating Line** display:
 
 - **Load Air Defense Scenario** — preloaded 5-target scenario
 - Configurable via JSON files in `frontend/src/scenarios/`
-
----
-
-## 📸 Screenshots
-
-| ⚕️ Ultrasound Simulator | 📶 5G Beamforming |
-| :---: | :---: |
-| <img width="960" height="445" alt="Ultrasound" src="https://github.com/user-attachments/assets/4368dc63-3b14-4be0-920c-1a10e7c600af" />
-| <img width="960" height="445" alt="5G Simulation" src="https://github.com/user-attachments/assets/5170f78b-1670-4eef-8ea9-911eddfcf394" /> |
-
-| 🎯 Radar Tracking (PPI) | 🩸 Doppler & Advanced |
-| :---: | :---: |
-| <img width="960" height="443" alt="Radar" src="https://github.com/user-attachments/assets/209f7d64-ce9c-496f-90fc-414fa84a37bb" />
-| <img width="960" height="446" alt="Doppler" src="https://github.com/user-attachments/assets/3f10a867-76bf-40ed-9ef4-9a9a2a61bc6a" /> |
-
----
 
 ## 🛠️ Technology Stack
 
