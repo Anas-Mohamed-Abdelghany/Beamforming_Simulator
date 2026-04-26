@@ -31,7 +31,7 @@ ELLIPSES_DEFAULT: list[dict[str, Any]] = [
         "centre_x": 0.50, "centre_y": 0.50,
         "semi_x":   0.345, "semi_y":  0.46,
         "angle_deg": 0.0,
-        "acoustic_impedance":    3.0,  # Bone
+        "acoustic_impedance":   .1,  # Bone
         "attenuation":           2.5,
         "reflection_coefficient": 0.35,
         "label": "Calcification",
@@ -42,7 +42,7 @@ ELLIPSES_DEFAULT: list[dict[str, Any]] = [
         "centre_x": 0.50, "centre_y": 0.5092,
         "semi_x":   0.3312, "semi_y": 0.437,
         "angle_deg": 0.0,
-        "acoustic_impedance":    1.54, # Soft tissue
+        "acoustic_impedance":    0.54, # Soft tissue
         "attenuation":           0.6,
         "reflection_coefficient": 0.015,
         "label": "Parenchyma",
@@ -211,7 +211,7 @@ def generate_phantom(
     -------
     dict with:
         "ellipses"  : list[dict]  — ellipse property table
-        "label_map" : list[list[int]]  — size×size integer label map
+        "label_map" : np.ndarray  — size×size integer label map
         "size"      : int
         "width_cm"  : float  — physical phantom width  (8 cm default)
         "depth_cm"  : float  — physical phantom height (8 cm default)
@@ -223,7 +223,7 @@ def generate_phantom(
 
     return {
         "ellipses":  ellipses,
-        "label_map": label_map.tolist(),
+        "label_map": label_map,
         "size":      size,
         "width_cm":  8.0,   # medical scale: 8 cm field-of-view
         "depth_cm":  8.0,

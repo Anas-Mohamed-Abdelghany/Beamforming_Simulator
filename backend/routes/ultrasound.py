@@ -61,13 +61,10 @@ def _beam_params(bp: BeamParamsModel) -> BeamParams:
 def get_phantom():
     """
     Return the current phantom definition.
-    The label_map is a flattened list to reduce JSON payload.
+    Excludes the large label_map since the frontend renders from ellipse descriptors.
     """
-    import numpy as np
-    lm = np.array(_session_phantom["label_map"], dtype=np.int32)
     return {
         "ellipses":       _session_phantom["ellipses"],
-        "label_map":      lm.tolist(),
         "size":           _session_phantom["size"],
         "width_cm":       _session_phantom["width_cm"],
         "depth_cm":       _session_phantom["depth_cm"],
