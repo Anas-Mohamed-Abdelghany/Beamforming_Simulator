@@ -390,5 +390,3 @@ $$\theta_{3dB} \approx \frac{0.886 \cdot \lambda}{N \cdot d}$$
 ---
 
 ## 📜 License
-
-See [LICENSE](./LICENSE) for details.
