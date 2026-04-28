@@ -221,6 +221,11 @@ export default function UltrasoundMode() {
         setLoading(true);
         const ph = await fetchPhantom();
         setPhantom(ph);
+        setLoading(false); // Show UI as soon as phantom is ready
+
+        setIsScanning(true);
+        setIsDopplerLoading(true);
+
         const [aRes, bRes, dRes] = await Promise.all([
           fetchAMode(DEFAULT_PROBE, DEFAULT_BEAM),
           fetchBMode(DEFAULT_PROBE, DEFAULT_BEAM, DEFAULT_BMODE.aperture_cm, DEFAULT_BMODE.n_lines),
@@ -231,8 +236,10 @@ export default function UltrasoundMode() {
         setDoppler(dRes);
       } catch (e) {
         setError(e.message);
-      } finally {
         setLoading(false);
+      } finally {
+        setIsScanning(false);
+        setIsDopplerLoading(false);
       }
     })();
   }, []);

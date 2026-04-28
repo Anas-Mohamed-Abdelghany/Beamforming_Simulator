@@ -35,7 +35,7 @@ def _get_impedance_profile(
     Cast a single ray from the probe and return the impedance at each depth
     sample.  Returns array shape (DEPTH_SAMPLES,).
     """
-    label_map = np.array(phantom["label_map"], dtype=np.int32)
+    label_map = phantom["label_map"]
     size  = phantom["size"]
     W_cm  = phantom["width_cm"]
     D_cm  = phantom["depth_cm"]
